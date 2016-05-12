@@ -1,6 +1,6 @@
 # CS118 Project 2
 
-Template for for [CS118 Spring 2016 Project 2](http://web.cs.ucla.edu/classes/spring16/cs118/project-2.html) 
+Template for for [CS118 Spring 2016 Project 2](http://web.cs.ucla.edu/classes/spring16/cs118/project-2.html)
 
 ## Makefile
 
