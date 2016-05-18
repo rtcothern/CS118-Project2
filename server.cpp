@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <vector>
 #include "port.h"
 
 #include <fstream>
@@ -13,6 +14,8 @@
 #define BUFSIZE 2048
 
 typedef std::string string;
+
+typedef std::vector<uint8_t> ByteBlob;
 
 int
 main(int argc, char **argv)
@@ -42,7 +45,6 @@ main(int argc, char **argv)
   int port = std::stoi(portN);
 
 	/* bind the socket to any valid IP address and a specific port */
-
 	memset((char *)&myaddr, 0, sizeof(myaddr));
 	myaddr.sin_family = AF_INET;
 	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -51,6 +53,15 @@ main(int argc, char **argv)
 	if (bind(sockfd, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0) {
 		perror("bind failed");
 		return 0;
+	}
+
+  //Grab the file specified
+  std::ifstream in(file_dir.c_str());
+	ByteBlob contents((std::istreambuf_iterator<char>(in)),
+	    std::istreambuf_iterator<char>());
+
+	if(contents.empty()){
+		std::cerr << "Invalid File" << std::endl;
 	}
 
 	while (true) {
@@ -69,5 +80,4 @@ main(int argc, char **argv)
 		if (sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
 			perror("sendto");
 	}
-	/* never exits */
 }
