@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <vector>
 #include "port.h"
+#include "udp.h"
 
 #include <fstream>
 #include <sstream>
@@ -26,6 +27,10 @@ main(int argc, char **argv)
 	int sockfd;
 	int msgcnt = 0;
 	char buf[BUFSIZE];
+
+	UdpHeader udp;
+	std::cout << std::to_string(sizeof(udp)) << std::endl;
+
 
 	/* create a UDP socket */
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
