@@ -9,6 +9,7 @@
 #include "showip.h"
 #include <unistd.h>
 #include <sys/types.h>
+#include "tcp.h"
 
 #include <iostream>
 #include <fstream>
@@ -16,7 +17,7 @@
 #include <string>
 #include <iterator>
 
-#define BUFLEN 2048
+#define BUFLEN 1032//1032 is the maximum packet size
 #define MSGS 5	/* number of messages to send */
 
 int main(int argc, char **argv)
@@ -68,22 +69,67 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	/* now let's send the messages */
-
-	for (i=0; i < MSGS; i++) {
-		printf("Sending packet %d to %s port %d\n", i, hostIP, port);
-		sprintf(buf, "This is packet %d", i);
-		if (sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, slen)==-1) {
-			perror("sendto");
+	/* Time for Messages */
+	int cwnd_size = 1024;
+	//Let's do the first handshake messages
+	TCPHeader synHeader(0, 0, cwnd_size, false, true, false);
+	cout << "Sending SYN..." << endl;
+	if (sendto(sockfd, synHeader.encode(), BUFLEN, 0, (struct sockaddr *)&remaddr, slen)==-1) {
+		perror("sendto");
+		exit(1);
+	}
+	recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
+	if (recvlen >= 0) {
+		TCPHeader synAckHeader = TCPHeader::decode(buf);
+		if(synAckHeader.S && synAckHeader.A){
+			cout << "Received SYN-ACK" << endl;
+			TCPHeader ackHeader(0, synAckHeader.SeqNum+1, cwnd_size, true, false, false);
+			if (sendto(sockfd, ackHeader.encode(), BUFLEN, 0, (struct sockaddr *)&remaddr, slen)==-1) {
+				perror("sendto");
+				exit(1);
+			}
+			cout << "Sending ACK packet " << ackHeader.AckNum << endl;
+		} else {
+			perror("syn-ack corrupted");
 			exit(1);
 		}
+	}else{
+		perror("error receiving syn-ack");
+		exit(1);
+	}
+
+	while(true){
+		//printf("Sending packet %d to %s port %d\n", i, hostIP, port);
+		// TCPHeader header(0, 0, cwnd_size, true, false, false);
+		// sprintf(buf, "This is packet %d", i);
 		/* now receive an acknowledgement from the server */
 		recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
-                if (recvlen >= 0) {
-                        buf[recvlen] = 0;	/* expect a printable string - terminate it */
-                        printf("received message: \"%s\"\n", buf);
-                }
+		if (recvlen >= 0) {
+				TCPHeader receiveheader = TCPHeader::decode(buf);
+				// cout << "Header Flags - A: " << receiveheader.A
+				// 	<< ", S: " << receiveheader.S << ", F: " << receiveheader.F << endl;
+				cout << string(receiveheader.getPayload()) << endl;
+				if(!receiveheader.F){
+					//cout << "Receiving data packet " << receiveheader.SeqNum << endl;
+					TCPHeader responseHeader(0, receiveheader.SeqNum+1024+1, cwnd_size, 1, 0, 0);
+					if (sendto(sockfd, responseHeader.encode(), BUFLEN, 0, (struct sockaddr *)&remaddr, slen)==-1) {
+						perror("sendto");
+						exit(1);
+					}
+					cout << "Sending ACK packet " << responseHeader.AckNum << endl;
+				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S) {
+					cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
+					TCPHeader responseHeader(0, 0, cwnd_size, 1, 0, 1);
+					if (sendto(sockfd, responseHeader.encode(), BUFLEN, 0, (struct sockaddr *)&remaddr, slen)==-1) {
+						perror("sendto");
+						exit(1);
+					}
+					close(sockfd);
+					return 0;
+				}
+		}
+
 	}
-	close(sockfd);
-	return 0;
+	// close(sockfd);
+	// return 0;
 }

@@ -8,15 +8,16 @@
 #include <vector>
 #include "port.h"
 #include "udp.h"
+#include "tcp.h"
 
 #include <fstream>
 #include <sstream>
 
-#define BUFSIZE 2048
+#define BUFSIZE 1032
 
 typedef std::string string;
 
-typedef std::vector<uint8_t> ByteBlob;
+typedef std::vector<char> ByteBlob;
 
 int
 main(int argc, char **argv)
@@ -64,25 +65,77 @@ main(int argc, char **argv)
   std::ifstream in(file_dir.c_str());
 	ByteBlob contents((std::istreambuf_iterator<char>(in)),
 	    std::istreambuf_iterator<char>());
+	char * contentArr = &contents[0];
+	int contentIndex = 0;
+	int numToCopy = 1024;
+	int contentSize = contents.size();
 
 	if(contents.empty()){
 		std::cerr << "Invalid File" << std::endl;
 	}
 
+	const int max_seq_num = 30720;
+	int seq_num;
+	int ack_num;
+
 	while (true) {
-    std::cout << "waiting on port " << port << std::endl;
+    // std::cout << "waiting on port " << port << std::endl;
 		recvlen = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&remaddr, &addrlen);
 		if (recvlen > 0) {
-			buf[recvlen] = 0;
-      std::cout << "Received message: " << buf << std::to_string(recvlen) << std::endl;
+			// buf[recvlen] = 0;
+      // std::cout << "Received message: " << buf << std::to_string(recvlen) << std::endl;
+			TCPHeader received = TCPHeader::decode(buf);
+
+			//Initial connection request, recieved SYN, we're sending SYN-ACK
+			if(received.S){
+				cout << "Received SYN packet, sending SYN-ACK..." << endl;
+				contentIndex = 0;
+				seq_num = rand() % max_seq_num; //Set a random initial sequence number
+				TCPHeader synAckHeader(seq_num, 0, received.Window, true, true, false);
+				if (sendto(sockfd, synAckHeader.encode(), BUFSIZE, 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
+					perror("sendto");
+					exit(1);
+				}
+			}
+			//Last phase of 3-way HS, or normal data flow
+			else if(received.A && !received.F){
+				cout << "Receiving ACK packet " << received.AckNum << endl;
+				TCPHeader response(received.AckNum, 0, received.Window, false, false, 0);
+				char* currPay = new char[numToCopy];
+				if(numToCopy + contentIndex < contentSize){
+					cout << "Sending values - contentIndex: " << contentIndex << ", contentSize: "
+						<< contentSize << ", numToCopy: " << numToCopy << endl;
+					memcpy(currPay, contentArr+contentIndex, numToCopy);
+					contentIndex += numToCopy;
+					cout << "Sending data packet " << response.SeqNum << endl;
+				}
+				else {
+					memcpy(currPay, contentArr+contentIndex, contentSize - contentIndex);
+					response.F = 1;
+					cout << "Sending data packet " << response.SeqNum << ", this is FIN" << endl;
+				}
+				response.setPayload(currPay);
+				if (sendto(sockfd, response.encode(), BUFSIZE, 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
+					perror("sendto");
+					exit(1);
+				}
+
+
+			}
+			//We've sent a FIN to the client and now it's FIN-ACK-ing us
+			else if(received.A && received.F){
+				// close(sockfd);
+				cout << "Received FIN-ACK, we're done" << endl;
+				return 0;
+			}
 		}
 		else{
       std::cout << "Ah shit... something went wrong..." << std::endl;
     }
 
-		sprintf(buf, "ack %d", msgcnt++);
-		printf("sending response \"%s\"\n", buf);
-		if (sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
-			perror("sendto");
+		// sprintf(buf, "ack %d", msgcnt++);
+		// printf("sending response \"%s\"\n", buf);
+		// if (sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
+		// 	perror("sendto");
 	}
 }

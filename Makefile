@@ -9,7 +9,9 @@ SERVER_FILES=server.cpp
 # Add all .cpp files that need to be compiled for your client
 CLIENT_FILES=client.cpp
 
-all: server client
+TEST_FILES=tcpTest.cpp
+
+all: server client test
 
 *.o: *.cpp
 	$(CXX) -o $@ $^ $(CXXFLAGS) $@.cpp
@@ -20,8 +22,11 @@ server: $(SERVER_FILES:.cpp=.o)
 client: $(CLIENT_FILES:.cpp=.o)
 	$(CXX) -o $@ $(CXXFLAGS) $(CLIENT_FILES:.cpp=.o)
 
+test: $(TEST_FILES:.cpp=.o)
+	$(CXX) -o $@ $(CXXFLAGS) $(TEST_FILES:.cpp=.o)
+
 clean:
-	rm -rf *.o *~ *.gch *.swp *.dSYM server client *.tar.gz
+	rm -rf *.o *~ *.gch *.swp *.dSYM server client test *.tar.gz
 
 tarball: clean
 	tar -cvf $(USERID).tar.gz *
