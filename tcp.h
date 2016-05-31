@@ -20,6 +20,8 @@ public:
 
   char* getPayload() { return payload;}
   void setPayload(char* payload){
+    delete(this->payload);
+    this->payload = new char[MAX_PAY_SIZE];
     this->payload = payload;
   }
 
@@ -30,6 +32,7 @@ public:
     A = 0;
     S = 0;
     F = 0;
+    payload = new char[MAX_PAY_SIZE];
   };
   TCPHeader(uint16_t SeqNum, uint16_t AckNum, uint16_t Window,
               bool A, bool S, bool F){
@@ -45,12 +48,20 @@ public:
   // Encode into a byte array
   char* encode(){
     char* encoded = new char[HEAD_SIZE+MAX_PAY_SIZE];
+    //memset(encoded,0,HEAD_SIZE+MAX_PAY_SIZE);
     memcpy(encoded, &SeqNum, 2);
     memcpy(encoded+2, &AckNum, 2);
     memcpy(encoded+4, &Window, 2);
     uint16_t flagRep = F + 2*S + 4*A;
     memcpy(encoded+6, &flagRep, 2);
     memcpy(encoded+8, payload, MAX_PAY_SIZE);
+
+    for(int x=0;x<1032;x++){
+      cout << encoded[x];
+    }
+
+    cout << endl << "-------------------------------" << endl;
+
     return encoded;
   }
   static TCPHeader decode(char* encoded){
@@ -115,6 +126,7 @@ public:
     // cout << "toReturn.F: " << toReturn.F << endl;
     char* newPay = new char[MAX_PAY_SIZE];
     memcpy(newPay, encoded+8, MAX_PAY_SIZE);
+
     toReturn.setPayload(newPay);
 
     return toReturn;

@@ -29,8 +29,8 @@ main(int argc, char **argv)
 	int msgcnt = 0;
 	char buf[BUFSIZE];
 
-	UdpHeader udp;
-	std::cout << std::to_string(sizeof(udp)) << std::endl;
+	//UdpHeader udp;
+	//std::cout << std::to_string(sizeof(udp)) << std::endl;
 
 
 	/* create a UDP socket */
@@ -114,7 +114,10 @@ main(int argc, char **argv)
 					response.F = 1;
 					cout << "Sending data packet " << response.SeqNum << ", this is FIN" << endl;
 				}
+
 				response.setPayload(currPay);
+
+				//free(currPay);
 				if (sendto(sockfd, response.encode(), BUFSIZE, 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
 					perror("sendto");
 					exit(1);
@@ -132,10 +135,5 @@ main(int argc, char **argv)
 		else{
       std::cout << "Ah shit... something went wrong..." << std::endl;
     }
-
-		// sprintf(buf, "ack %d", msgcnt++);
-		// printf("sending response \"%s\"\n", buf);
-		// if (sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
-		// 	perror("sendto");
 	}
 }

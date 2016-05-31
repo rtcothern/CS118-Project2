@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 #include <iterator>
+#include <vector>
 
 #define BUFLEN 1032//1032 is the maximum packet size
 #define MSGS 5	/* number of messages to send */
@@ -98,6 +99,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	string total_payload = "";
+
 	while(true){
 		//printf("Sending packet %d to %s port %d\n", i, hostIP, port);
 		// TCPHeader header(0, 0, cwnd_size, true, false, false);
@@ -108,7 +111,12 @@ int main(int argc, char **argv)
 				TCPHeader receiveheader = TCPHeader::decode(buf);
 				// cout << "Header Flags - A: " << receiveheader.A
 				// 	<< ", S: " << receiveheader.S << ", F: " << receiveheader.F << endl;
-				cout << string(receiveheader.getPayload()) << endl;
+
+				if(receiveheader.getPayload() != NULL){
+					total_payload.append(receiveheader.getPayload());
+				}
+
+				//cout << string(total_payload) << endl;
 				if(!receiveheader.F){
 					//cout << "Receiving data packet " << receiveheader.SeqNum << endl;
 					TCPHeader responseHeader(0, receiveheader.SeqNum+1024+1, cwnd_size, 1, 0, 0);
@@ -124,6 +132,19 @@ int main(int argc, char **argv)
 						perror("sendto");
 						exit(1);
 					}
+
+					// save to current directory
+			    std::ofstream os("test.txt");
+			    if (!os) {
+			      std::cerr<<"Error writing to ..."<<std::endl;
+			    }
+			    else {
+			      string data = total_payload.c_str();
+						os << data;
+						os.close();
+			    }
+
+
 					close(sockfd);
 					return 0;
 				}
