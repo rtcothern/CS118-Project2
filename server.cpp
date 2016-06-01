@@ -14,6 +14,7 @@
 #include <sstream>
 
 #define BUFSIZE 1032
+#define MAX_SEQ_NUM 30720
 
 typedef std::string string;
 
@@ -75,7 +76,6 @@ main(int argc, char **argv)
 		std::cerr << "Invalid File" << std::endl;
 	}
 
-	const int max_seq_num = 30720;
 	int seq_num;
 	int ack_num;
 
@@ -92,7 +92,7 @@ main(int argc, char **argv)
 				rec_window = received.Window;
 				cout << "Received SYN packet, sending SYN-ACK..." << endl;
 				contentIndex = 0;
-				seq_num = rand() % max_seq_num; //Set a random initial sequence number
+				seq_num = rand() % MAX_SEQ_NUM; //Set a random initial sequence number
 				TCPHeader synAckHeader(seq_num, 0, received.Window, true, true, false);
 				if (sendto(sockfd, synAckHeader.encode(), synAckHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
 					perror("sendto");

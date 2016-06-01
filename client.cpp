@@ -21,6 +21,7 @@
 #define BUFLEN 1032//1032 is the maximum packet size
 #define MSGS 5	/* number of messages to send */
 #define REC_WINDOW 30720
+#define MAX_SEQ_NUM 30720
 
 int main(int argc, char **argv)
 {
@@ -81,6 +82,9 @@ int main(int argc, char **argv)
 		if(synAckHeader.S && synAckHeader.A){
 			cout << "Received SYN-ACK" << endl;
 			expected_seq = synAckHeader.SeqNum+1;
+			if (expected_seq > MAX_SEQ_NUM) {
+				expected_seq -= MAX_SEQ_NUM;
+			}
 			TCPHeader ackHeader(0, expected_seq, current_ws, true, false, false);
 			if (sendto(sockfd, ackHeader.encode(), ackHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 				perror("sendto");
@@ -106,7 +110,10 @@ int main(int argc, char **argv)
 
 				if(!receiveheader.F){
 					if(receiveheader.SeqNum == expected_seq){
-						expected_seq = receiveheader.SeqNum + 1024 + 1;
+						expected_seq = receiveheader.SeqNum + (recvlen-8) + 1;
+						if (expected_seq > MAX_SEQ_NUM) {
+							expected_seq -= MAX_SEQ_NUM;
+						}
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
 						testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
 					}
