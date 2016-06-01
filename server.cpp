@@ -84,7 +84,7 @@ main(int argc, char **argv)
 		if (recvlen > 0) {
 			// buf[recvlen] = 0;
       // std::cout << "Received message: " << buf << std::to_string(recvlen) << std::endl;
-			TCPHeader received = TCPHeader::decode(buf);
+			TCPHeader received = TCPHeader::decode(buf, recvlen);
 
 			//Initial connection request, recieved SYN, we're sending SYN-ACK
 			if(received.S){
@@ -92,7 +92,7 @@ main(int argc, char **argv)
 				contentIndex = 0;
 				seq_num = rand() % max_seq_num; //Set a random initial sequence number
 				TCPHeader synAckHeader(seq_num, 0, received.Window, true, true, false);
-				if (sendto(sockfd, synAckHeader.encode(), BUFSIZE, 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
+				if (sendto(sockfd, synAckHeader.encode(), synAckHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
 					perror("sendto");
 					exit(1);
 				}
@@ -101,24 +101,28 @@ main(int argc, char **argv)
 			else if(received.A && !received.F){
 				cout << "Receiving ACK packet " << received.AckNum << endl;
 				TCPHeader response(received.AckNum, 0, received.Window, false, false, 0);
-				char* currPay = new char[numToCopy];
+				char* currPay;
 				if(numToCopy + contentIndex < contentSize){
+					currPay = new char[numToCopy];
 					cout << "Sending values - contentIndex: " << contentIndex << ", contentSize: "
 						<< contentSize << ", numToCopy: " << numToCopy << endl;
 					memcpy(currPay, contentArr+contentIndex, numToCopy);
 					contentIndex += numToCopy;
 					cout << "Sending data packet " << response.SeqNum << endl;
+					response.setPayload(currPay, numToCopy);
 				}
 				else {
+					currPay = new char[contentSize - contentIndex];
 					memcpy(currPay, contentArr+contentIndex, contentSize - contentIndex);
 					response.F = 1;
 					cout << "Sending data packet " << response.SeqNum << ", this is FIN" << endl;
+					response.setPayload(currPay, contentSize - contentIndex);
 				}
 
-				response.setPayload(currPay);
+
 
 				//free(currPay);
-				if (sendto(sockfd, response.encode(), BUFSIZE, 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
+				if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen)==-1) {
 					perror("sendto");
 					exit(1);
 				}
