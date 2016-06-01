@@ -69,7 +69,7 @@ public:
     //   cout << encoded[x];
     // }
 
-    cout << endl << "-------------------------------" << endl;
+    //cout << endl << "-------------------------------" << endl;
 
     return encoded;
   }

@@ -104,8 +104,8 @@ main(int argc, char **argv)
 				char* currPay;
 				if(numToCopy + contentIndex < contentSize){
 					currPay = new char[numToCopy];
-					cout << "Sending values - contentIndex: " << contentIndex << ", contentSize: "
-						<< contentSize << ", numToCopy: " << numToCopy << endl;
+					//cout << "Sending values - contentIndex: " << contentIndex << ", contentSize: "
+					//	<< contentSize << ", numToCopy: " << numToCopy << endl;
 					memcpy(currPay, contentArr+contentIndex, numToCopy);
 					contentIndex += numToCopy;
 					cout << "Sending data packet " << response.SeqNum << endl;
