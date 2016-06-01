@@ -28,6 +28,7 @@ main(int argc, char **argv)
 	int sockfd;
 	int msgcnt = 0;
 	char buf[BUFSIZE];
+	int rec_window;
 
 	//UdpHeader udp;
 	//std::cout << std::to_string(sizeof(udp)) << std::endl;
@@ -88,6 +89,7 @@ main(int argc, char **argv)
 
 			//Initial connection request, recieved SYN, we're sending SYN-ACK
 			if(received.S){
+				rec_window = received.Window;
 				cout << "Received SYN packet, sending SYN-ACK..." << endl;
 				contentIndex = 0;
 				seq_num = rand() % max_seq_num; //Set a random initial sequence number
@@ -101,6 +103,7 @@ main(int argc, char **argv)
 			else if(received.A && !received.F){
 				cout << "Receiving ACK packet " << received.AckNum << endl;
 				TCPHeader response(received.AckNum, 0, received.Window, false, false, 0);
+
 				char* currPay;
 				if(numToCopy + contentIndex < contentSize){
 					currPay = new char[numToCopy];

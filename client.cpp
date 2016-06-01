@@ -31,6 +31,7 @@ int main(int argc, char **argv)
 	int recvlen;		/* # bytes in acknowledgement message */
 	char rec_buf[REC_WINDOW];
 	int current_ws = REC_WINDOW;
+	int expected_seq;
 
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	/* create a socket */
@@ -79,7 +80,8 @@ int main(int argc, char **argv)
 		TCPHeader synAckHeader = TCPHeader::decode(buf, recvlen);
 		if(synAckHeader.S && synAckHeader.A){
 			cout << "Received SYN-ACK" << endl;
-			TCPHeader ackHeader(0, synAckHeader.SeqNum+1, current_ws, true, false, false);
+			expected_seq = synAckHeader.SeqNum+1;
+			TCPHeader ackHeader(0, expected_seq, current_ws, true, false, false);
 			if (sendto(sockfd, ackHeader.encode(), ackHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 				perror("sendto");
 				exit(1);
@@ -101,42 +103,50 @@ int main(int argc, char **argv)
 		recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
 		if (recvlen >= 0) {
 				TCPHeader receiveheader = TCPHeader::decode(buf, recvlen);
-				//cout << "recvlen: " << recvlen << endl;
-				testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
 
-				//cout << string(total_payload) << endl;
 				if(!receiveheader.F){
-					cout << "Receiving data packet " << receiveheader.SeqNum << endl;
-					TCPHeader responseHeader(0, receiveheader.SeqNum+1024+1, current_ws, 1, 0, 0);
+					if(receiveheader.SeqNum == expected_seq){
+						expected_seq = receiveheader.SeqNum + 1024 + 1;
+						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
+						testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+					}
+
+					TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
 					if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 						perror("sendto");
 						exit(1);
 					}
 					cout << "Sending ACK packet " << responseHeader.AckNum << endl;
-				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S) {
-					cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
-					TCPHeader responseHeader(0, 0, current_ws, 1, 0, 1);
-					if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
-						perror("sendto");
-						exit(1);
-					}
+				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S ) {
+						if(receiveheader.SeqNum == expected_seq){
+							cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
+							testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+							TCPHeader responseHeader(0, 0, current_ws, 1, 0, 1);
+							if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
+								perror("sendto");
+								exit(1);
+							}
+							// save to current directory
+							std::ofstream os("test.txt");
+							if (!os) {
+								std::cerr<<"Error writing to ..."<<std::endl;
+							}
+							else {
+								for(vector<char>::iterator x=testVec.begin(); x<testVec.end(); x++){
+									os << *x;
+								}
+								os.close();
+							}
 
-					// save to current directory
-			    std::ofstream os("test.jpg");
-			    if (!os) {
-			      std::cerr<<"Error writing to ..."<<std::endl;
-			    }
-			    else {
-			      //ByteBlob data = response.getData();
-			      for(vector<char>::iterator x=testVec.begin(); x<testVec.end(); x++){
-			        os << *x;
-			      }
-						//os << "\n";
-						os.close();
-			    }
-
-					close(sockfd);
-					return 0;
+							close(sockfd);
+							return 0;
+						}else{
+							TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
+							if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
+								perror("sendto");
+								exit(1);
+							}
+						}
 				}
 		}
 
