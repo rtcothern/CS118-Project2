@@ -94,6 +94,16 @@ main(int argc, char **argv)
 	int dupCount = 0;
 	int numTimesWrapped = 0;
 	bool begunTransfer = false;
+
+	timeval timestamp;
+	gettimeofday(&timestamp, NULL);
+	//unackedPacketTimstamps[seq_num] = timestamp.tv_usec / 1000;
+	srand(timestamp.tv_usec);
+	seq_num = rand() % MAX_SEQ_NUM; //Set a random initial sequence number
+	cout << "Initial Seq Num: " << seq_num << endl;
+	ISN = seq_num;
+	contentIndex = 0;
+
 	while (true) {
 		recvlen = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&remaddr, &addrlen);
 		if (recvlen > 0) {
@@ -105,13 +115,6 @@ main(int argc, char **argv)
 				begunTransfer = false;
 				rec_window = received.Window;
 				cout << "Received SYN packet, sending SYN-ACK..." << endl;
-				contentIndex = 0;
-				timeval timestamp;
-				gettimeofday(&timestamp, NULL);
-				//unackedPacketTimstamps[seq_num] = timestamp.tv_usec / 1000;
-				srand(timestamp.tv_usec);
-				seq_num = rand() % MAX_SEQ_NUM; //Set a random initial sequence number
-				ISN = seq_num;
 				TCPHeader synAckHeader(seq_num, 0, received.Window, true, true, false);
 				
 				if (sendto(sockfd, synAckHeader.encode(), synAckHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
@@ -143,14 +146,14 @@ main(int argc, char **argv)
 					}
 					else {
 						currPay = new char[contentSize - contentIndex];
-						cout << "Currpay Before:      " << endl << std::string(currPay) << endl;
+						//cout << "Currpay Before:      " << endl << std::string(currPay) << endl;
 
 						memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
-						cout << "Currpay raw: " << endl << currPay << endl;
-						cout << "Currpay After:      ";
-						for (int i = 0; i < contentSize - contentIndex; i++)
-							cout << currPay[i];
-						cout << endl;
+						//cout << "Currpay raw: " << endl << currPay << endl;
+						//cout << "Currpay After:      ";
+						/*for (int i = 0; i < contentSize - contentIndex; i++)
+							cout << currPay[i];*/
+						//cout << endl;
 						response.F = 1;
 						cout << "Sending data packet " << response.SeqNum << ", this is FIN" 
 							<< " Content Index is: " << contentIndex << " Content Size is: " << contentSize - contentIndex << endl;
@@ -165,6 +168,9 @@ main(int argc, char **argv)
 					delete [] currPay;
 				}
 				else {
+					/*cout << "Expected either: " << seq_num + 1024
+						<< " or " << seq_num + 1 << " or " << 1024 - (MAX_SEQ_NUM - seq_num)
+						<< ", but got " << received.AckNum << endl;*/
 					dupCount++;
 					if (dupCount == 3) {
 						TCPHeader response(seq_num, 0, rec_window, 0, 0, 0);

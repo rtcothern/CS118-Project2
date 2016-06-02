@@ -80,43 +80,48 @@ int main(int argc, char **argv)
 
 	int numTimesWrapped = 0;
 
-	//Let's do the first handshake messages
-	TCPHeader synHeader(0, 0, current_ws, false, true, false);
-	cout << "Sending SYN..." << endl;
-	if (sendto(sockfd, synHeader.encode(), synHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
-		perror("sendto");
-		exit(1);
-	}
-	recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
-	if (recvlen >= 0) {
-		TCPHeader synAckHeader = TCPHeader::decode(buf, recvlen);
-		if(synAckHeader.S && synAckHeader.A){
-			cout << "Received SYN-ACK" << endl;
-			expected_seq = synAckHeader.SeqNum+1;
-			if (expected_seq > MAX_SEQ_NUM) {
-				expected_seq -= MAX_SEQ_NUM;
-				numTimesWrapped++;
-			}
-			TCPHeader ackHeader(0, expected_seq, current_ws, true, false, false);
-			if (sendto(sockfd, ackHeader.encode(), ackHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
-				perror("sendto");
-				exit(1);
-			}
-			cout << "Sending ACK packet " << ackHeader.AckNum << endl;
-		} else {
-			perror("syn-ack corrupted");
-			exit(1);
-		}
-	}
-	else{
+	//While loop for handshake
+	while (true) {
+		//Let's do the first handshake messages
 		TCPHeader synHeader(0, 0, current_ws, false, true, false);
+		cout << "Sending SYN..." << endl;
 		if (sendto(sockfd, synHeader.encode(), synHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
 			perror("sendto");
 			exit(1);
 		}
-		cout << "Sending SYN... Retransmission" << endl;
+		recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
+		if (recvlen >= 0) {
+			TCPHeader synAckHeader = TCPHeader::decode(buf, recvlen);
+			if (synAckHeader.S && synAckHeader.A) {
+				cout << "Received SYN-ACK" << endl;
+				expected_seq = synAckHeader.SeqNum + 1;
+				cout << "Got this initial sequence number: " << synAckHeader.SeqNum << endl;
+				if (expected_seq > MAX_SEQ_NUM) {
+					expected_seq -= MAX_SEQ_NUM;
+					numTimesWrapped++;
+				}
+				TCPHeader ackHeader(0, expected_seq, current_ws, true, false, false);
+				if (sendto(sockfd, ackHeader.encode(), ackHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+					perror("sendto");
+					exit(1);
+				}
+				cout << "Sending ACK packet " << ackHeader.AckNum << endl;
+				break;
+			}
+			else {
+				perror("syn-ack corrupted");
+				exit(1);
+			}
+		}
+		/*else {
+			TCPHeader synHeader(0, 0, current_ws, false, true, false);
+			if (sendto(sockfd, synHeader.encode(), synHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+				perror("sendto");
+				exit(1);
+			}
+			cout << "Sending SYN... Retransmission" << endl;
+		}*/
 	}
-
 	//string total_payload = "";
 	vector<char> testVec;
 	std::map<int, char*> contentMap;
