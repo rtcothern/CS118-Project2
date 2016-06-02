@@ -130,7 +130,9 @@ int main(int argc, char **argv)
 							expected_seq -= MAX_SEQ_NUM;
 						}
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
-						contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
+						contentMap[receiveheader.SeqNum] = new char[1024];
+						memcpy(contentMap[receiveheader.SeqNum], receiveheader.getPayload(), 1024);
+						//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
 						//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
 					}
 					TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
@@ -143,12 +145,15 @@ int main(int argc, char **argv)
 						if(receiveheader.SeqNum == expected_seq){
 							cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
 							//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+							//contentMap[receiveheader.SeqNum] = new char[recvlen - 8];
+							//memcpy(contentMap[receiveheader.SeqNum], receiveheader.getPayload(), recvlen - 8);
 							//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
-							char* foo = new char[recvlen - 8];
-							memcpy(foo, receiveheader.getPayload(), recvlen - 8);
-							cout << "Payload After: " << foo << endl;
-							/*for (int i = 0; i < recvlen-8; i++)
-								cout << foo[i];
+							char* lastChunk = new char[recvlen - 8];
+							memcpy(lastChunk, receiveheader.getPayload(), recvlen - 8);
+							/*cout << "Payload After: " << contentMap[receiveheader.SeqNum] << endl;
+							cout << "Payload After Iterative: ";
+							for (int i = 0; i < recvlen-8; i++)
+								cout << contentMap[receiveheader.SeqNum][i];
 							cout << endl;*/
 							TCPHeader responseHeader(0, 0, current_ws, 1, 0, 1);
 							if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
@@ -156,18 +161,30 @@ int main(int argc, char **argv)
 								exit(1);
 							}
 							// save to current directory
-							std::ofstream os("test.jpg");
+							std::ofstream os("test.txt");
 							if (!os) {
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}
 							else {
 								for(std::map<int, char*>::iterator x=contentMap.begin(); x!=contentMap.end(); ++x){
-									os << x->second;
+
+									for (int i = 0; i < 1024; i++) {
+										cout << x->second[i];
+										os << x->second[i];
+									}
+									cout << endl;
+
 								}
-								os << foo;
+								//os << foo;
+								cout << "Payload For fooasdf: " << endl;
+								for (int i = 0; i < recvlen - 8; i++) {
+									cout << lastChunk[i];
+									os << lastChunk[i];
+								}
+								cout << endl;
 								os.close();
 							}
-
+							
 							close(sockfd);
 							return 0;
 						}else{
