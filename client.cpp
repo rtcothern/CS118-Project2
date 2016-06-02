@@ -17,20 +17,20 @@
 #include <string>
 #include <iterator>
 #include <vector>
+#include <map>
 
 #define BUFLEN 1032//1032 is the maximum packet size
-#define MSGS 5	/* number of messages to send */
 #define REC_WINDOW 30720
 #define MAX_SEQ_NUM 30720
 
 int main(int argc, char **argv)
 {
 	struct sockaddr_in myaddr, remaddr;
-	int sockfd, i;
+	int sockfd;
   socklen_t slen=sizeof(remaddr);
 	char buf[BUFLEN];	/* message buffer */
 	int recvlen;		/* # bytes in acknowledgement message */
-	char rec_buf[REC_WINDOW];
+	//char rec_buf[REC_WINDOW];
 	int current_ws = REC_WINDOW;
 	int expected_seq;
 
@@ -43,6 +43,14 @@ int main(int argc, char **argv)
   if(argc < 3){
     std::cerr << "invalid number of command line arguments" << std::endl;
     return 0;
+  }
+
+  //Set the timeout to 500ms on the socket
+  struct timeval tv;
+  tv.tv_sec = 0;
+  tv.tv_usec = 500000;
+  if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+	  perror("Error");
   }
 
   //Get Command Line Arguments
@@ -95,13 +103,20 @@ int main(int argc, char **argv)
 			perror("syn-ack corrupted");
 			exit(1);
 		}
-	}else{
-		perror("error receiving syn-ack");
-		exit(1);
+	}
+	else{
+		TCPHeader synHeader(0, 0, current_ws, false, true, false);
+		if (sendto(sockfd, synHeader.encode(), synHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+			perror("sendto");
+			exit(1);
+		}
+		cout << "Sending SYN... Retransmission" << endl;
 	}
 
-	string total_payload = "";
+	//string total_payload = "";
 	vector<char> testVec;
+	std::map<int, char*> contentMap;
+	int numTimesWrapped = 0;
 	while(true){
 		/* now receive an acknowledgement from the server */
 		recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
@@ -110,14 +125,14 @@ int main(int argc, char **argv)
 
 				if(!receiveheader.F){
 					if(receiveheader.SeqNum == expected_seq){
-						expected_seq = receiveheader.SeqNum + (recvlen-8) + 1;
+						expected_seq = receiveheader.SeqNum + (recvlen-8);
 						if (expected_seq > MAX_SEQ_NUM) {
 							expected_seq -= MAX_SEQ_NUM;
 						}
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
-						testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+						contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
+						//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
 					}
-
 					TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
 					if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 						perror("sendto");
@@ -127,7 +142,10 @@ int main(int argc, char **argv)
 				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S ) {
 						if(receiveheader.SeqNum == expected_seq){
 							cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
-							testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+							//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+							contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
+							cout << "Payload " << receiveheader.getPayload() << endl;
+
 							TCPHeader responseHeader(0, 0, current_ws, 1, 0, 1);
 							if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 								perror("sendto");
@@ -139,8 +157,8 @@ int main(int argc, char **argv)
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}
 							else {
-								for(vector<char>::iterator x=testVec.begin(); x<testVec.end(); x++){
-									os << *x;
+								for(std::map<int, char*>::iterator x=contentMap.begin(); x!=contentMap.end(); ++x){
+									os << x->second;
 								}
 								os.close();
 							}
@@ -148,6 +166,7 @@ int main(int argc, char **argv)
 							close(sockfd);
 							return 0;
 						}else{
+							//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
 							TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
 							if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 								perror("sendto");
@@ -155,6 +174,17 @@ int main(int argc, char **argv)
 							}
 						}
 				}
+		}
+		else {
+			TCPHeader responseHeaderRetransmit(0, expected_seq, current_ws, 1, 0, 0);
+			if (sendto(sockfd, responseHeaderRetransmit.encode(), 
+				responseHeaderRetransmit.getPacketSize(), 0, 
+				(struct sockaddr *)&remaddr, slen) == -1) {
+
+				perror("sendto");
+				exit(1);
+			}
+			cout << "Sending ACK packet " << responseHeaderRetransmit.AckNum << " Retransmission" << endl;
 		}
 
 	}
