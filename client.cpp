@@ -143,16 +143,20 @@ int main(int argc, char **argv)
 						if(receiveheader.SeqNum == expected_seq){
 							cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
 							//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
-							contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
-							cout << "Payload " << receiveheader.getPayload() << endl;
-
+							//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
+							char* foo = new char[recvlen - 8];
+							memcpy(foo, receiveheader.getPayload(), recvlen - 8);
+							cout << "Payload After: " << foo << endl;
+							/*for (int i = 0; i < recvlen-8; i++)
+								cout << foo[i];
+							cout << endl;*/
 							TCPHeader responseHeader(0, 0, current_ws, 1, 0, 1);
 							if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 								perror("sendto");
 								exit(1);
 							}
 							// save to current directory
-							std::ofstream os("test.txt");
+							std::ofstream os("test.jpg");
 							if (!os) {
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}
@@ -160,6 +164,7 @@ int main(int argc, char **argv)
 								for(std::map<int, char*>::iterator x=contentMap.begin(); x!=contentMap.end(); ++x){
 									os << x->second;
 								}
+								os << foo;
 								os.close();
 							}
 
