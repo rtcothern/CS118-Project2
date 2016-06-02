@@ -77,6 +77,9 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+
+	int numTimesWrapped = 0;
+
 	//Let's do the first handshake messages
 	TCPHeader synHeader(0, 0, current_ws, false, true, false);
 	cout << "Sending SYN..." << endl;
@@ -92,6 +95,7 @@ int main(int argc, char **argv)
 			expected_seq = synAckHeader.SeqNum+1;
 			if (expected_seq > MAX_SEQ_NUM) {
 				expected_seq -= MAX_SEQ_NUM;
+				numTimesWrapped++;
 			}
 			TCPHeader ackHeader(0, expected_seq, current_ws, true, false, false);
 			if (sendto(sockfd, ackHeader.encode(), ackHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
@@ -116,7 +120,6 @@ int main(int argc, char **argv)
 	//string total_payload = "";
 	vector<char> testVec;
 	std::map<int, char*> contentMap;
-	int numTimesWrapped = 0;
 	while(true){
 		/* now receive an acknowledgement from the server */
 		recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
@@ -126,12 +129,13 @@ int main(int argc, char **argv)
 				if(!receiveheader.F){
 					if(receiveheader.SeqNum == expected_seq){
 						expected_seq = receiveheader.SeqNum + (recvlen-8);
+						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
+						contentMap[receiveheader.SeqNum+ numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
+						memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
 						if (expected_seq > MAX_SEQ_NUM) {
 							expected_seq -= MAX_SEQ_NUM;
+							numTimesWrapped++;
 						}
-						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
-						contentMap[receiveheader.SeqNum] = new char[1024];
-						memcpy(contentMap[receiveheader.SeqNum], receiveheader.getPayload(), 1024);
 						//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
 						//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
 					}
@@ -161,7 +165,7 @@ int main(int argc, char **argv)
 								exit(1);
 							}
 							// save to current directory
-							std::ofstream os("test.txt");
+							std::ofstream os("test.jpg");
 							if (!os) {
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}
@@ -169,19 +173,19 @@ int main(int argc, char **argv)
 								for(std::map<int, char*>::iterator x=contentMap.begin(); x!=contentMap.end(); ++x){
 
 									for (int i = 0; i < 1024; i++) {
-										cout << x->second[i];
+										//cout << x->second[i];
 										os << x->second[i];
 									}
-									cout << endl;
+									//cout << endl;
 
 								}
 								//os << foo;
-								cout << "Payload For fooasdf: " << endl;
+								//cout << "Payload For fooasdf: " << endl;
 								for (int i = 0; i < recvlen - 8; i++) {
-									cout << lastChunk[i];
+									//cout << lastChunk[i];
 									os << lastChunk[i];
 								}
-								cout << endl;
+								//cout << endl;
 								os.close();
 							}
 							

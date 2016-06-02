@@ -106,12 +106,14 @@ main(int argc, char **argv)
 				rec_window = received.Window;
 				cout << "Received SYN packet, sending SYN-ACK..." << endl;
 				contentIndex = 0;
+				timeval timestamp;
+				gettimeofday(&timestamp, NULL);
+				//unackedPacketTimstamps[seq_num] = timestamp.tv_usec / 1000;
+				srand(timestamp.tv_usec);
 				seq_num = rand() % MAX_SEQ_NUM; //Set a random initial sequence number
 				ISN = seq_num;
 				TCPHeader synAckHeader(seq_num, 0, received.Window, true, true, false);
-				/*timeval timestamp;
-				gettimeofday(&timestamp, NULL);*/
-				//unackedPacketTimstamps[seq_num] = timestamp.tv_usec / 1000;
+				
 				if (sendto(sockfd, synAckHeader.encode(), synAckHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
 					perror("sendto");
 					exit(1);
@@ -122,7 +124,12 @@ main(int argc, char **argv)
 				begunTransfer = true;
 				cout << "Receiving ACK packet " << received.AckNum << endl;
 				TCPHeader response(received.AckNum, 0, received.Window, false, false, 0);
-				if (received.AckNum == seq_num + 1024 || received.AckNum == seq_num + 1) {
+				if (received.AckNum == 1024 - (MAX_SEQ_NUM - seq_num)) {
+					numTimesWrapped++;
+				}
+				if (received.AckNum == seq_num + 1024 
+					|| received.AckNum == seq_num + 1
+					|| received.AckNum == 1024 - (MAX_SEQ_NUM - seq_num)) {
 					seq_num = received.AckNum;
 					char* currPay;
 					if (numToCopy + contentIndex < contentSize) {
@@ -162,7 +169,7 @@ main(int argc, char **argv)
 					if (dupCount == 3) {
 						TCPHeader response(seq_num, 0, rec_window, 0, 0, 0);
 						char* currPay;
-						int contInd = seq_num - ISN - 1;
+						int contInd = seq_num + numTimesWrapped*MAX_SEQ_NUM - ISN - 1;
 						if (numToCopy + contInd < contentSize) {
 							currPay = new char[numToCopy];
 							memcpy(currPay, contentArr + contInd, numToCopy);
@@ -199,7 +206,7 @@ main(int argc, char **argv)
 			else if(begunTransfer){
 				TCPHeader response(seq_num, 0, rec_window, 0, 0, 0);
 				char* currPay;
-				int contInd = seq_num - ISN - 1;
+				int contInd = seq_num + numTimesWrapped*MAX_SEQ_NUM - ISN - 1;
 				if (numToCopy + contInd < contentSize) {
 					currPay = new char[numToCopy];
 					memcpy(currPay, contentArr + contInd, numToCopy);
