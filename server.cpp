@@ -23,6 +23,11 @@ typedef std::string string;
 
 typedef std::vector<char> ByteBlob;
 
+struct sentPacket {
+	int seqNum;
+	timeval timer;
+};
+
 
 int
 main(int argc, char **argv)
@@ -33,10 +38,11 @@ main(int argc, char **argv)
 	int sockfd;
 	char buf[BUFSIZE];
 	int rec_window;
-	vector<int> sentVec;
+	vector<sentPacket> sentVec;
 	int cwnd = 1;
 	int ssthresh = 4;
 	bool allClear = true;
+
 
 	//UdpHeader udp;
 	//std::cout << std::to_string(sizeof(udp)) << std::endl;
@@ -140,14 +146,14 @@ main(int argc, char **argv)
 				//Remove this packet from the sent vector of outstanding packets
 				if(received.AckNum - 1024 > 0){
 					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
-							if(*it == received.AckNum - 1024){
+							if(((*it)->seqNum) == received.AckNum - 1024){
 								sentVec.erase(it);
 								break;
 							}
 					}
 				}else{ //This else is to account for a wrap around happening
 					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
-							if(*it == MAX_SEQ_NUM + (received.AckNum - 1024)){
+							if(((*it)->seqNum) == MAX_SEQ_NUM + (received.AckNum - 1024)){
 								sentVec.erase(it);
 								break;
 							}
@@ -156,7 +162,15 @@ main(int argc, char **argv)
 
 				//Check if all outstanding data packets have been recieved correctly if not let timout get it
 				if(sentVec.empty()){
-					cwnd = cwnd*2;
+
+					if(cwnd>ssthresh){
+						cwnd+=1;
+					}
+					else{
+						cwnd = cwnd*2;
+					}
+
+
 					cout << "CWND: " << cwnd << endl;
 
 						//cout << "In The Loop" << endl;
@@ -175,7 +189,16 @@ main(int argc, char **argv)
 								memcpy(currPay, contentArr + contentIndex, numToCopy);
 								contentIndex += numToCopy;
 								cout << "Sending data packet " << packetSeq <<  " Content Index is: " << contentIndex- numToCopy << endl;
-								sentVec.push_back(response.SeqNum);
+
+								//create a struct for the sent packet
+								sentPacket* s = new sentPacket();
+								s->seqNum = response.SeqNum;
+								gettimeofday(&(s->timer), NULL);
+
+								cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
+								cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+
+								sentVec.push_back(s);
 								response.setPayload(currPay, numToCopy);
 
 							}
@@ -185,7 +208,15 @@ main(int argc, char **argv)
 								response.F = 1;
 								cout << "Sending data packet " << packetSeq << ", this is FIN"
 								<< " Content Index is: " << contentIndex << " Content Size is: " << contentSize - contentIndex << endl;
-								sentVec.push_back(response.SeqNum);
+								//create a struct for the sent packet
+								sentPacket* s = new sentPacket();
+								s->seqNum = response.SeqNum;
+								gettimeofday(&(s->timer), NULL);
+
+								cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
+								cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+
+								sentVec.push_back(s);
 								response.setPayload(currPay, contentSize - contentIndex );
 								contentIndex += numToCopy;
 								if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
@@ -265,6 +296,7 @@ main(int argc, char **argv)
 			}
 
 		}
+		//Deal with a timeout
 		else{
 			if(seq_num < 0)
 			 std::cout << "Waiting on Client..." << std::endl;
@@ -276,7 +308,15 @@ main(int argc, char **argv)
 					currPay = new char[numToCopy];
 					memcpy(currPay, contentArr + contInd, numToCopy);
 					cout << "Sending data packet " << response.SeqNum << " Restransmission (Timeout)" << " Content Index is: " << contInd << endl;
-					sentVec.push_back(response.SeqNum);
+					//create a struct for the sent packet
+					sentPacket* s = new sentPacket();
+					s->seqNum = response.SeqNum;
+					gettimeofday(&(s->timer), NULL);
+
+					cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
+					cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+
+					sentVec.push_back(s);
 
 					response.setPayload(currPay, numToCopy);
 				}
@@ -285,7 +325,15 @@ main(int argc, char **argv)
 					memcpy(currPay, contentArr + contInd, contentSize - contInd);
 					response.F = 1;
 					cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Content Index is: " << contInd << endl;
-					sentVec.push_back(response.SeqNum);
+					//create a struct for the sent packet
+					sentPacket* s = new sentPacket();
+					s->seqNum = response.SeqNum;
+					gettimeofday(&(s->timer), NULL);
+
+					cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
+					cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+
+					sentVec.push_back(s);
 
 					response.setPayload(currPay, contentSize - contInd);
 					//contentIndex += numToCopy;
