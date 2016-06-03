@@ -38,7 +38,7 @@ main(int argc, char **argv)
 	int sockfd;
 	char buf[BUFSIZE];
 	int rec_window;
-	vector<sentPacket> sentVec;
+	vector<sentPacket*> sentVec;
 	int cwnd = 1;
 	int ssthresh = 4;
 	bool allClear = true;
@@ -145,14 +145,14 @@ main(int argc, char **argv)
 
 				//Remove this packet from the sent vector of outstanding packets
 				if(received.AckNum - 1024 > 0){
-					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
+					for(std::vector<sentPacket*>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
 							if(((*it)->seqNum) == received.AckNum - 1024){
 								sentVec.erase(it);
 								break;
 							}
 					}
 				}else{ //This else is to account for a wrap around happening
-					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
+					for(std::vector<sentPacket*>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
 							if(((*it)->seqNum) == MAX_SEQ_NUM + (received.AckNum - 1024)){
 								sentVec.erase(it);
 								break;
@@ -195,8 +195,8 @@ main(int argc, char **argv)
 								s->seqNum = response.SeqNum;
 								gettimeofday(&(s->timer), NULL);
 
-								cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
-								cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+								//cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
+								//cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
 
 								sentVec.push_back(s);
 								response.setPayload(currPay, numToCopy);
@@ -213,8 +213,8 @@ main(int argc, char **argv)
 								s->seqNum = response.SeqNum;
 								gettimeofday(&(s->timer), NULL);
 
-								cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
-								cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+								//cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
+								//cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
 
 								sentVec.push_back(s);
 								response.setPayload(currPay, contentSize - contentIndex );
@@ -276,14 +276,18 @@ main(int argc, char **argv)
 
 
 					//cout << "Packets Out Right Meow" << endl;
-					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
+					for(std::vector<sentPacket*>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
 							//cout << to_string(*it) << endl;
 					}
 
 
 
-				}else{
+				}
+				else{
+					/*for (sentPacket* s : sentVec) {
+						cout << "Element: " << s->seqNum << endl;
 
+					}*/
 				}
 
 			}
@@ -301,22 +305,22 @@ main(int argc, char **argv)
 			if(seq_num < 0)
 			 std::cout << "Waiting on Client..." << std::endl;
 			else if(begunTransfer){
-				TCPHeader response(seq_num, 0, rec_window, 0, 0, 0);
+				TCPHeader response(sentVec[0]->seqNum, 0, rec_window, 0, 0, 0);
 				char* currPay;
-				int contInd = seq_num + numTimesWrapped*MAX_SEQ_NUM - ISN - 1;
+				int contInd = sentVec[0]->seqNum + numTimesWrapped*MAX_SEQ_NUM - ISN - 1;
 				if (numToCopy + contInd < contentSize) {
 					currPay = new char[numToCopy];
 					memcpy(currPay, contentArr + contInd, numToCopy);
 					cout << "Sending data packet " << response.SeqNum << " Restransmission (Timeout)" << " Content Index is: " << contInd << endl;
 					//create a struct for the sent packet
-					sentPacket* s = new sentPacket();
-					s->seqNum = response.SeqNum;
-					gettimeofday(&(s->timer), NULL);
+					/*sentPacket* s = new sentPacket();
+					s->seqNum = response.SeqNum;*/
+					gettimeofday(&(sentVec[0]->timer), NULL);
 
-					cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
-					cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+					//cout << "The sequence number of the sent packet is: " << to_string(sentVec[0]->seqNum) << endl;
+					//cout << "The time the packet was sent is: " << to_string(sentVec[0]->timer.tv_usec /1000) << endl;
 
-					sentVec.push_back(s);
+					//sentVec.push_back(s);
 
 					response.setPayload(currPay, numToCopy);
 				}
@@ -326,14 +330,14 @@ main(int argc, char **argv)
 					response.F = 1;
 					cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Content Index is: " << contInd << endl;
 					//create a struct for the sent packet
-					sentPacket* s = new sentPacket();
-					s->seqNum = response.SeqNum;
-					gettimeofday(&(s->timer), NULL);
+					/*sentPacket* s = new sentPacket();
+					s->seqNum = response.SeqNum;*/
+					gettimeofday(&(sentVec[0]->timer), NULL);
 
-					cout << "The sequence number of the sent packet is: " << to_string(s->seqNum) << endl;
-					cout << "The time the packet was sent is: " << to_string(s->timer.tv_usec /1000) << endl;
+					//cout << "The sequence number of the sent packet is: " << to_string(sentVec[0]->seqNum) << endl;
+					//cout << "The time the packet was sent is: " << to_string(sentVec[0]->timer.tv_usec /1000) << endl;
 
-					sentVec.push_back(s);
+					//sentVec.push_back(s);
 
 					response.setPayload(currPay, contentSize - contInd);
 					//contentIndex += numToCopy;
