@@ -132,24 +132,36 @@ int main(int argc, char **argv)
 				TCPHeader receiveheader = TCPHeader::decode(buf, recvlen);
 
 				if(!receiveheader.F){
-					if(receiveheader.SeqNum == expected_seq){
-						expected_seq = receiveheader.SeqNum + (recvlen-8);
+					if (contentMap.find(receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM) != contentMap.end()) {
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
-						contentMap[receiveheader.SeqNum+ numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
-						memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
-						if (expected_seq > MAX_SEQ_NUM) {
-							expected_seq -= MAX_SEQ_NUM;
-							numTimesWrapped++;
+						TCPHeader responseHeader(0, receiveheader.SeqNum + (recvlen - 8), current_ws, 1, 0, 0);
+						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+							perror("sendto");
+							exit(1);
 						}
-						//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
-						//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
 					}
-					TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
-					if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
-						perror("sendto");
-						exit(1);
+					else{
+						if (receiveheader.SeqNum == expected_seq) {
+							expected_seq = receiveheader.SeqNum + (recvlen - 8);
+							cout << "Receiving data packet " << receiveheader.SeqNum << endl;
+							contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
+							memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
+							if (expected_seq > MAX_SEQ_NUM) {
+								expected_seq -= MAX_SEQ_NUM;
+								numTimesWrapped++;
+							}
+							//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
+							//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+						}
+						TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
+						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+							perror("sendto");
+							exit(1);
+						}
+						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
 					}
-					cout << "Sending ACK packet " << responseHeader.AckNum << endl;
+					
 				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S ) {
 						if(receiveheader.SeqNum == expected_seq){
 							cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
