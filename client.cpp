@@ -161,7 +161,7 @@ int main(int argc, char **argv)
 						}
 						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
 					}
-					
+
 				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S ) {
 						if(receiveheader.SeqNum == expected_seq){
 							cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
@@ -182,7 +182,7 @@ int main(int argc, char **argv)
 								exit(1);
 							}
 							// save to current directory
-							std::ofstream os("test.jpg");
+							std::ofstream os("test.txt");
 							if (!os) {
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}
@@ -205,7 +205,7 @@ int main(int argc, char **argv)
 								//cout << endl;
 								os.close();
 							}
-							
+
 							close(sockfd);
 							return 0;
 						}else{
@@ -220,8 +220,8 @@ int main(int argc, char **argv)
 		}
 		else {
 			TCPHeader responseHeaderRetransmit(0, expected_seq, current_ws, 1, 0, 0);
-			if (sendto(sockfd, responseHeaderRetransmit.encode(), 
-				responseHeaderRetransmit.getPacketSize(), 0, 
+			if (sendto(sockfd, responseHeaderRetransmit.encode(),
+				responseHeaderRetransmit.getPacketSize(), 0,
 				(struct sockaddr *)&remaddr, slen) == -1) {
 
 				perror("sendto");

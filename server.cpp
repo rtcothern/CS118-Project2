@@ -170,12 +170,9 @@ main(int argc, char **argv)
 						cwnd = cwnd*2;
 					}
 
-
 					cout << "CWND: " << cwnd << endl;
 
 						//cout << "In The Loop" << endl;
-
-
 						for(int x=0;x<cwnd;x++){
 							int packetSeq = received.AckNum + 1024*x;
 							if(packetSeq > MAX_SEQ_NUM){
@@ -183,11 +180,18 @@ main(int argc, char **argv)
 							}
 							TCPHeader response(packetSeq, 0, received.Window, false, false, 0);
 							seq_num = received.AckNum;
+							cout << "The sequence number is: " << seq_num << endl;
 							char* currPay;
 							if (numToCopy + contentIndex < contentSize) {
 								currPay = new char[numToCopy];
 								memcpy(currPay, contentArr + contentIndex, numToCopy);
-								contentIndex += numToCopy;
+
+								if((MAX_SEQ_NUM - contentIndex + numToCopy) < 0){
+									contentIndex = contentIndex + numToCopy - MAX_SEQ_NUM;
+								}else{
+									contentIndex += numToCopy;
+								}
+
 								cout << "Sending data packet " << packetSeq <<  " Content Index is: " << contentIndex- numToCopy << endl;
 
 								//create a struct for the sent packet
@@ -218,7 +222,11 @@ main(int argc, char **argv)
 
 								sentVec.push_back(s);
 								response.setPayload(currPay, contentSize - contentIndex );
-								contentIndex += numToCopy;
+								if((MAX_SEQ_NUM - contentIndex + numToCopy) < 0){
+									contentIndex = contentIndex + numToCopy - MAX_SEQ_NUM;
+								}else{
+									contentIndex += numToCopy;
+								}
 								if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
 									perror("sendto");
 									exit(1);
