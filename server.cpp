@@ -13,6 +13,8 @@
 #include <fstream>
 #include <sstream>
 #include <sys/time.h>
+#include <map>
+#include <vector>
 
 #define BUFSIZE 1032
 #define MAX_SEQ_NUM 30720
@@ -31,6 +33,10 @@ main(int argc, char **argv)
 	int sockfd;
 	char buf[BUFSIZE];
 	int rec_window;
+	vector<int> sentVec;
+	int cwnd = 1;
+	int ssthresh = 4;
+	bool allClear = true;
 
 	//UdpHeader udp;
 	//std::cout << std::to_string(sizeof(udp)) << std::endl;
@@ -90,7 +96,6 @@ main(int argc, char **argv)
 
 	int seq_num = -1;
 	int ISN = -1;
-	int cwnd = 1;
 	int dupCount = 0;
 	int numTimesWrapped = 0;
 	bool begunTransfer = false;
@@ -116,95 +121,149 @@ main(int argc, char **argv)
 				rec_window = received.Window;
 				cout << "Received SYN packet, sending SYN-ACK..." << endl;
 				TCPHeader synAckHeader(seq_num, 0, received.Window, true, true, false);
-				
+
 				if (sendto(sockfd, synAckHeader.encode(), synAckHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
 					perror("sendto");
 					exit(1);
 				}
 			}
+
 			//Last phase of 3-way HS, or normal data flow
 			else if(received.A && !received.F){
 				begunTransfer = true;
 				cout << "Receiving ACK packet " << received.AckNum << endl;
-				TCPHeader response(received.AckNum, 0, received.Window, false, false, 0);
+
 				if (received.AckNum == 1024 - (MAX_SEQ_NUM - seq_num)) {
 					numTimesWrapped++;
 				}
-				if (received.AckNum == seq_num + 1024 
-					|| received.AckNum == seq_num + 1
-					|| received.AckNum == 1024 - (MAX_SEQ_NUM - seq_num)) {
-					seq_num = received.AckNum;
-					char* currPay;
-					if (numToCopy + contentIndex < contentSize) {
-						currPay = new char[numToCopy];
-						//cout << "Sending values - contentIndex: " << contentIndex << ", contentSize: "
-						//	<< contentSize << ", numToCopy: " << numToCopy << endl;
-						memcpy(currPay, contentArr + contentIndex, numToCopy);
-						contentIndex += numToCopy;
-						cout << "Sending data packet " << response.SeqNum <<  " Content Index is: " << contentIndex- numToCopy << endl;
-						response.setPayload(currPay, numToCopy);
-					}
-					else {
-						currPay = new char[contentSize - contentIndex];
-						//cout << "Currpay Before:      " << endl << std::string(currPay) << endl;
 
-						memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
-						//cout << "Currpay raw: " << endl << currPay << endl;
-						//cout << "Currpay After:      ";
-						/*for (int i = 0; i < contentSize - contentIndex; i++)
-							cout << currPay[i];*/
-						//cout << endl;
-						response.F = 1;
-						cout << "Sending data packet " << response.SeqNum << ", this is FIN" 
-							<< " Content Index is: " << contentIndex << " Content Size is: " << contentSize - contentIndex << endl;
-						response.setPayload(currPay, contentSize - contentIndex );
-						contentIndex += numToCopy;
+				//Remove this packet from the sent vector of outstanding packets
+				if(received.AckNum - 1024 > 0){
+					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
+							if(*it == received.AckNum - 1024){
+								sentVec.erase(it);
+								break;
+							}
 					}
-					//free(currPay);
-					if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
-						perror("sendto");
-						exit(1);
-					}
-					delete [] currPay;
-				}
-				else {
-					/*cout << "Expected either: " << seq_num + 1024
-						<< " or " << seq_num + 1 << " or " << 1024 - (MAX_SEQ_NUM - seq_num)
-						<< ", but got " << received.AckNum << endl;*/
-					dupCount++;
-					if (dupCount == 3) {
-						TCPHeader response(seq_num, 0, rec_window, 0, 0, 0);
-						char* currPay;
-						int contInd = seq_num + numTimesWrapped*MAX_SEQ_NUM - ISN - 1;
-						if (numToCopy + contInd < contentSize) {
-							currPay = new char[numToCopy];
-							memcpy(currPay, contentArr + contInd, numToCopy);
-							cout << "Sending data packet " << response.SeqNum << " Retransmission (Dup)" << " Content Index is: " << contInd << endl;
-							response.setPayload(currPay, numToCopy);
-						}
-						else {
-							currPay = new char[contentSize - contInd];
-							memcpy(currPay, contentArr + contInd, contentSize - contInd);
-							response.F = 1;
-							cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Retransmission (Dup)" << " Content Index is: " << contInd << endl;
-							response.setPayload(currPay, contentSize - contInd);
-							//contentIndex += numToCopy;
-						}
-						//free(currPay);
-						if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
-							perror("sendto");
-							exit(1);
-						}
-						delete [] currPay;
+				}else{ //This else is to account for a wrap around happening
+					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
+							if(*it == MAX_SEQ_NUM + (received.AckNum - 1024)){
+								sentVec.erase(it);
+								break;
+							}
 					}
 				}
+
+				//Check if all outstanding data packets have been recieved correctly if not let timout get it
+				if(sentVec.empty()){
+					cwnd = cwnd*2;
+					cout << "CWND: " << cwnd << endl;
+
+						//cout << "In The Loop" << endl;
+
+
+						for(int x=0;x<cwnd;x++){
+							int packetSeq = received.AckNum + 1024*x;
+							if(packetSeq > MAX_SEQ_NUM){
+								packetSeq-=MAX_SEQ_NUM;
+							}
+							TCPHeader response(packetSeq, 0, received.Window, false, false, 0);
+							seq_num = received.AckNum;
+							char* currPay;
+							if (numToCopy + contentIndex < contentSize) {
+								currPay = new char[numToCopy];
+								memcpy(currPay, contentArr + contentIndex, numToCopy);
+								contentIndex += numToCopy;
+								cout << "Sending data packet " << packetSeq <<  " Content Index is: " << contentIndex- numToCopy << endl;
+								sentVec.push_back(response.SeqNum);
+								response.setPayload(currPay, numToCopy);
+
+							}
+							else {
+								currPay = new char[contentSize - contentIndex];
+								memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
+								response.F = 1;
+								cout << "Sending data packet " << packetSeq << ", this is FIN"
+								<< " Content Index is: " << contentIndex << " Content Size is: " << contentSize - contentIndex << endl;
+								sentVec.push_back(response.SeqNum);
+								response.setPayload(currPay, contentSize - contentIndex );
+								contentIndex += numToCopy;
+								if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
+									perror("sendto");
+									exit(1);
+								}
+								break;
+
+							}
+							//free(currPay);
+							if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
+								perror("sendto");
+								exit(1);
+							}
+							delete [] currPay;
+						}
+
+						/*
+						if (received.AckNum == seq_num + 1024
+							|| received.AckNum == seq_num + 1
+							|| received.AckNum == 1024 - (MAX_SEQ_NUM - seq_num)) {
+
+
+
+						}*/
+						/*else {
+
+							dupCount++;
+							if (dupCount == 3) {
+								TCPHeader response(seq_num, 0, rec_window, 0, 0, 0);
+								char* currPay;
+								int contInd = seq_num + numTimesWrapped*MAX_SEQ_NUM - ISN - 1;
+								if (numToCopy + contInd < contentSize) {
+									currPay = new char[numToCopy];
+									memcpy(currPay, contentArr + contInd, numToCopy);
+									cout << "Sending data packet " << response.SeqNum << " Retransmission (Dup)" << " Content Index is: " << contInd << endl;
+									sentVec.push_back(response.SeqNum);
+									response.setPayload(currPay, numToCopy);
+								}
+								else {
+									currPay = new char[contentSize - contInd];
+									memcpy(currPay, contentArr + contInd, contentSize - contInd);
+									response.F = 1;
+									cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Retransmission (Dup)" << " Content Index is: " << contInd << endl;
+									sentVec.push_back(response.SeqNum);
+									response.setPayload(currPay, contentSize - contInd);
+									//contentIndex += numToCopy;
+								}
+								//free(currPay);
+								if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
+									perror("sendto");
+									exit(1);
+								}
+								delete [] currPay;
+							}
+						}*/
+
+
+					//cout << "Packets Out Right Meow" << endl;
+					for(std::vector<int>::iterator it = sentVec.begin(); it != sentVec.end(); ++it) {
+							//cout << to_string(*it) << endl;
+					}
+
+
+
+				}else{
+
+				}
+
 			}
+
 			//We've sent a FIN to the client and now it's FIN-ACK-ing us
 			else if(received.A && received.F){
 				// close(sockfd);
 				cout << "Received FIN-ACK, we're done" << endl;
 				return 0;
 			}
+
 		}
 		else{
 			if(seq_num < 0)
@@ -217,6 +276,8 @@ main(int argc, char **argv)
 					currPay = new char[numToCopy];
 					memcpy(currPay, contentArr + contInd, numToCopy);
 					cout << "Sending data packet " << response.SeqNum << " Restransmission (Timeout)" << " Content Index is: " << contInd << endl;
+					sentVec.push_back(response.SeqNum);
+
 					response.setPayload(currPay, numToCopy);
 				}
 				else {
@@ -224,6 +285,8 @@ main(int argc, char **argv)
 					memcpy(currPay, contentArr + contInd, contentSize - contInd);
 					response.F = 1;
 					cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Content Index is: " << contInd << endl;
+					sentVec.push_back(response.SeqNum);
+
 					response.setPayload(currPay, contentSize - contInd);
 					//contentIndex += numToCopy;
 				}
