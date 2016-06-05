@@ -97,10 +97,10 @@ int main(int argc, char **argv)
 				cout << "Received SYN-ACK" << endl;
 				expected_seq = synAckHeader.SeqNum;// +1;
 				cout << "Got this initial sequence number: " << synAckHeader.SeqNum << endl;
-				if (expected_seq > MAX_SEQ_NUM) {
+				/*if (expected_seq > MAX_SEQ_NUM) {
 					expected_seq -= MAX_SEQ_NUM;
 					numTimesWrapped++;
-				}
+				}*/
 				TCPHeader ackHeader(0, expected_seq, current_ws, true, false, false);
 				if (sendto(sockfd, ackHeader.encode(), ackHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
 					perror("sendto");
@@ -126,6 +126,7 @@ int main(int argc, char **argv)
 	//string total_payload = "";
 	vector<char> testVec;
 	std::map<int, char*> contentMap;
+	std::vector<char*> contentVector;
 	while(true){
 		/* now receive an acknowledgement from the server */
 		recvlen = recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *)&remaddr, &slen);
@@ -135,14 +136,13 @@ int main(int argc, char **argv)
 				if(!receiveheader.F){
 					if(receiveheader.SeqNum == expected_seq){
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
-
 						TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
 						expected_seq = receiveheader.SeqNum + (recvlen-8);
-						contentMap[receiveheader.SeqNum+ numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
-						memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
+						//contentMap[receiveheader.SeqNum+ numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
+						contentVector.push_back(receiveheader.getPayload());
+						//memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
 						if (expected_seq > MAX_SEQ_NUM) {
 							expected_seq -= MAX_SEQ_NUM;
-							numTimesWrapped++;
 						}
 						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
 							perror("sendto");
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
 						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
 
 					}
-					else if (contentMap.find(receiveheader.SeqNum) != contentMap.end()) {
+					/*else if (contentMap.find(receiveheader.SeqNum) != contentMap.end()) {
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
 						TCPHeader responseHeader(0, receiveheader.SeqNum, current_ws, 1, 0, 0);
 						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
@@ -159,12 +159,12 @@ int main(int argc, char **argv)
 							exit(1);
 						}
 						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
-					}
+					}*/
 					else {
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;// << ", out of order?" << endl;
 						TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
-						contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
-						memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
+						/*contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
+						memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);*/
 						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
 							perror("sendto");
 							exit(1);
@@ -181,6 +181,8 @@ int main(int argc, char **argv)
 							//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
 							char* lastChunk = new char[recvlen - 8];
 							memcpy(lastChunk, receiveheader.getPayload(), recvlen - 8);
+							cout << "Recvlen - 8: " << recvlen - 8 << endl;
+							cout << receiveheader.getPayload() << endl;
 							/*cout << "Payload After: " << contentMap[receiveheader.SeqNum] << endl;
 							cout << "Payload After Iterative: ";
 							for (int i = 0; i < recvlen-8; i++)
@@ -197,15 +199,21 @@ int main(int argc, char **argv)
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}
 							else {
-								for(std::map<int, char*>::iterator x=contentMap.begin(); x!=contentMap.end(); ++x){
+								//for(std::map<int, char*>::iterator x=contentMap.begin(); x!=contentMap.end(); ++x){
 
+								//	for (int i = 0; i < 1024; i++) {
+								//		//cout << x->second[i];
+								//		os << x->second[i];
+								//	}
+								//	//cout << endl;
+
+								//}
+								for (char* c : contentVector) {
 									for (int i = 0; i < 1024; i++) {
-										//cout << x->second[i];
-										os << x->second[i];
+										os << c[i];
 									}
-									//cout << endl;
-
 								}
+								cout << "Made it here" << endl;
 								//os << foo;
 								//cout << "Payload For fooasdf: " << endl;
 								for (int i = 0; i < recvlen - 8; i++) {
