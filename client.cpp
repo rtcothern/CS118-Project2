@@ -48,6 +48,7 @@ int main(int argc, char **argv)
   //Set the timeout to 500ms on the socket
   struct timeval tv;
   tv.tv_sec = 0;
+  //MADE THIS LONGER
   tv.tv_usec = 500000;
   if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
 	  perror("Error");
@@ -94,7 +95,7 @@ int main(int argc, char **argv)
 			TCPHeader synAckHeader = TCPHeader::decode(buf, recvlen);
 			if (synAckHeader.S && synAckHeader.A) {
 				cout << "Received SYN-ACK" << endl;
-				expected_seq = synAckHeader.SeqNum + 1;
+				expected_seq = synAckHeader.SeqNum;// +1;
 				cout << "Got this initial sequence number: " << synAckHeader.SeqNum << endl;
 				if (expected_seq > MAX_SEQ_NUM) {
 					expected_seq -= MAX_SEQ_NUM;
@@ -133,23 +134,33 @@ int main(int argc, char **argv)
 
 				if(!receiveheader.F){
 					if(receiveheader.SeqNum == expected_seq){
-						expected_seq = receiveheader.SeqNum + (recvlen-8);
 						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
+
+						TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
+						expected_seq = receiveheader.SeqNum + (recvlen-8);
 						contentMap[receiveheader.SeqNum+ numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
 						memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
 						if (expected_seq > MAX_SEQ_NUM) {
 							expected_seq -= MAX_SEQ_NUM;
 							numTimesWrapped++;
 						}
-						//contentMap[receiveheader.SeqNum] = receiveheader.getPayload();
-						//testVec.insert(testVec.end(), receiveheader.getPayload(),receiveheader.getPayload()+recvlen-8);
+						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+							perror("sendto");
+							exit(1);
+						}
+						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
+
 					}
-					TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
-					if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen)==-1) {
-						perror("sendto");
-						exit(1);
+					else if (contentMap.find(receiveheader.SeqNum) != contentMap.end()) {
+						cout << "Receiving data packet " << receiveheader.SeqNum << endl;
+						TCPHeader responseHeader(0, receiveheader.SeqNum, current_ws, 1, 0, 0);
+						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+							perror("sendto");
+							exit(1);
+						}
+						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
 					}
-					cout << "Sending ACK packet " << responseHeader.AckNum << endl;
+					
 				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S ) {
 						if(receiveheader.SeqNum == expected_seq){
 							cout << "Recieved FIN packet, sending FIN-ACK..." << endl;
@@ -170,7 +181,7 @@ int main(int argc, char **argv)
 								exit(1);
 							}
 							// save to current directory
-							std::ofstream os("test.jpg");
+							std::ofstream os("received.txt");
 							if (!os) {
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}
