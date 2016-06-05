@@ -139,7 +139,7 @@ main(int argc, char **argv)
 				/*if (received.AckNum == seq_num + 1024 
 					|| received.AckNum == seq_num + 1
 					|| received.AckNum == 1024 - (MAX_SEQ_NUM - seq_num)) {*/
-				if(received.AckNum == unackedSeqNums[0]){
+				if(!unackedSeqNums.empty() && received.AckNum == unackedSeqNums[0]){
 					/*if (received.AckNum == 1024 - (MAX_SEQ_NUM - seq_num)) {
 						numTimesWrapped++;
 					}*/
@@ -224,11 +224,10 @@ main(int argc, char **argv)
 							perror("sendto");
 							exit(1);
 						}
-						unackedSeqNums.clear();
+						/*unackedSeqNums.clear();
 						unackedSeqNums.push_back(headSeqNum);
 						ssthresh = cwnd / 2;
-						cwnd = 1024;
-						delete[] currPay;
+						cwnd = 1024;*/
 					}
 				}
 			}
@@ -262,11 +261,10 @@ main(int argc, char **argv)
 					perror("sendto");
 					exit(1);
 				}
-				unackedSeqNums.clear();
+				/*unackedSeqNums.clear();
 				unackedSeqNums.push_back(headSeqNum);
 				ssthresh = cwnd / 2;
-				cwnd = 1024;
-				delete[] currPay;
+				cwnd = 1024;*/
 			}
 
 		}
