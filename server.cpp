@@ -156,22 +156,39 @@ main(int argc, char **argv)
 					cachedLastReceivedSeq = received.AckNum;
 					oldestTimestamp = getCurrentTimestamp();
 					//seq_num = received.AckNum;
+					bool SlowStart = false;
 					if (!waitForFINACK) {
 						int numNewPackets = 0;
 						if (cwnd <= ssthresh) {
-							if (cwnd + 2048 <= received.Window)
+							SlowStart = true;
+							if (cwnd + 1024 <= ssthresh) {
 								numNewPackets = 2;
-							else if (cwnd + 1024 <= received.Window)
+								cwnd += 1024;
+							}
+							else {
 								numNewPackets = 1;
+							}
 						}
 						else {
-							//TODO Impl Congestion Avoidance
+							//TODO Impl Congestion
+							int currentCWNDPackets = cwnd / 1024;
+							int numToIncreaseCWND = 1.0 / currentCWNDPackets * 1024;
+							if (cwnd + numToIncreaseCWND <= received.Window) {
+								int temp = (cwnd + numToIncreaseCWND) / 1024;
+								if (temp != currentCWNDPackets) {
+									numNewPackets = 2;
+								}
+								else {
+									numNewPackets = 1;
+								}
+								cwnd += numToIncreaseCWND;
+							}
 						}
 						
 						vector<TCPHeader> toSendOut;
 						for (int i = 0; i < numNewPackets; i++) {
 							char* currPay;
-							int lastSeqNum = unackedSeqNums[(cwnd + i * 1024) / 1024 - 1];
+							int lastSeqNum = unackedSeqNums.back();// [(cwnd + i * 1024) / 1024 - 1];
 							int contentIndex = lastSeqNum - ISN + numTimesWrapped*MAX_SEQ_NUM + internalNumWrapped*MAX_SEQ_NUM;
 							//cout << "Trying content index:" << contentIndex << endl;
 							TCPHeader response(lastSeqNum, 0, received.Window, 0, 0, 0);
@@ -217,10 +234,9 @@ main(int argc, char **argv)
 						cout << unackedSeqNums[i] << " ";
 						}*/
 						//cout << endl;
-						if (numNewPackets >= 1) {
-							cwnd += 1024;
+						/*if (numNewPackets >= 1) {
 							cout << "Increasing cwnd by 1, cwnd is now: " << cwnd << endl << endl;
-						}
+						}*/
 						unackedSeqNums.erase(unackedSeqNums.begin());
 					}
 				}
