@@ -193,7 +193,11 @@ main(int argc, char **argv)
 							exit(1);
 						}
 					}
-					cout << "Removing head of unacked: " << unackedSeqNums[0] << endl;
+					cout << "Removing head of unacked: " << unackedSeqNums[0] << ", List was" << endl;
+					for (int i = 0; i < unackedSeqNums.size(); i++) {
+						cout << unackedSeqNums[i] << " ";
+					}
+					cout << endl;
 					if (numNewPackets >= 1) {
 						cwnd += 1024;
 						cout << "Increasing cwnd by 1, cwnd is now: " << cwnd << endl << endl;
@@ -201,6 +205,32 @@ main(int argc, char **argv)
 					unackedSeqNums.erase(unackedSeqNums.begin());
 				}
 				else {
+					if (dupCount == 3) {
+						dupCount = 0;
+						//int headSeqNum = unackedSeqNums[0];
+						int contentIndex = received.AckNum - ISN + numTimesWrapped*MAX_SEQ_NUM;
+						TCPHeader response(received.AckNum, 0, received.Window, 0, 0, 0);
+						char* currPay;
+						if (numToCopy + contentIndex < contentSize) {
+							currPay = new char[numToCopy];
+							memcpy(currPay, contentArr + contentIndex, numToCopy);
+							cout << "Sending data packet " << response.SeqNum << " Restransmission (Dup Timeout)" << " Content Index is: " << contentIndex << endl;
+							response.setPayload(currPay, numToCopy);
+						}
+						else {
+							currPay = new char[contentSize - contentIndex];
+							memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
+							response.F = 1;
+							cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Content Index is: " << contentIndex << endl;
+							response.setPayload(currPay, contentSize - contentIndex);
+						}
+						if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
+							perror("sendto");
+							exit(1);
+						}
+					} else{
+						dupCount++;
+					}
 					//cout << "getCurrentTimestamp(): " << getCurrentTimestamp() << " - oldestTimestamp: " << oldestTimestamp << " = " << getCurrentTimestamp() - oldestTimestamp << endl;
 					if (getCurrentTimestamp() - oldestTimestamp > 500) {
 						int headSeqNum = unackedSeqNums[0];

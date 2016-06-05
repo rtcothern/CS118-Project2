@@ -160,6 +160,17 @@ int main(int argc, char **argv)
 						}
 						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
 					}
+					else {
+						cout << "Receiving data packet " << receiveheader.SeqNum << endl;// << ", out of order?" << endl;
+						TCPHeader responseHeader(0, expected_seq, current_ws, 1, 0, 0);
+						contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM] = new char[1024];
+						memcpy(contentMap[receiveheader.SeqNum + numTimesWrapped*MAX_SEQ_NUM], receiveheader.getPayload(), 1024);
+						if (sendto(sockfd, responseHeader.encode(), responseHeader.getPacketSize(), 0, (struct sockaddr *)&remaddr, slen) == -1) {
+							perror("sendto");
+							exit(1);
+						}
+						cout << "Sending ACK packet " << responseHeader.AckNum << endl;
+					}
 					
 				} else if(receiveheader.F && !receiveheader.A && !receiveheader.S ) {
 						if(receiveheader.SeqNum == expected_seq){
