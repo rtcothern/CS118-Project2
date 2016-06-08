@@ -194,7 +194,7 @@ int main(int argc, char **argv)
 								exit(1);
 							}
 							// save to current directory
-							std::ofstream os("received.txt");
+							std::ofstream os("received.data");
 							if (!os) {
 								std::cerr<<"Error writing to ..."<<std::endl;
 							}

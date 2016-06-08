@@ -6,8 +6,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <vector>
-#include "port.h"
-#include "udp.h"
+#include <math.h> 
 #include "tcp.h"
 
 #include <fstream>
@@ -158,33 +157,73 @@ main(int argc, char **argv)
 					//seq_num = received.AckNum;
 					bool SlowStart = false;
 					if (!waitForFINACK) {
-						int numNewPackets = 0;
+						int numNewPackets = 1;
+						//if (cwnd <= ssthresh) {
+						//	SlowStart = true;
+						//	if (cwnd + 1024 <= ssthresh) {
+						//		numNewPackets = 2;
+						//		cwnd += 1024;
+						//	}
+						//	else {
+						//		numNewPackets = 1;
+						//	}
+						//}
+						//else {
+						//	//TODO Impl Congestion
+						//	int currentCWNDPackets = cwnd / 1024;
+						//	int numToIncreaseCWND = 1.0 / currentCWNDPackets * 1024;
+						//	if (cwnd + numToIncreaseCWND <= received.Window) {
+						//		int temp = (cwnd + numToIncreaseCWND) / 1024;
+						//		if (temp != currentCWNDPackets) {
+						//			numNewPackets = 2;
+						//		}
+						//		else {
+						//			numNewPackets = 1;
+						//		}
+						//		cwnd += numToIncreaseCWND;
+						//	}
+						//}
+
+						/*bool SlowStart = true;
 						if (cwnd <= ssthresh) {
-							SlowStart = true;
-							if (cwnd + 1024 <= ssthresh) {
-								numNewPackets = 2;
-								cwnd += 1024;
-							}
-							else {
-								numNewPackets = 1;
-							}
+							numNewPackets = 2;
+							cwnd += 1024;
 						}
 						else {
-							//TODO Impl Congestion
+							SlowStart = false;
 							int currentCWNDPackets = cwnd / 1024;
 							int numToIncreaseCWND = 1.0 / currentCWNDPackets * 1024;
 							if (cwnd + numToIncreaseCWND <= received.Window) {
-								int temp = (cwnd + numToIncreaseCWND) / 1024;
-								if (temp != currentCWNDPackets) {
+								if ((cwnd + numToIncreaseCWND) / 1024 != cwnd) {
 									numNewPackets = 2;
-								}
-								else {
-									numNewPackets = 1;
 								}
 								cwnd += numToIncreaseCWND;
 							}
+						}*/
+
+						if (cwnd <= ssthresh) {
+							numNewPackets = 2;
+							cwnd += 1024;
+
+						}
+						else {
+							/*int currentCWNDPackets = cwnd / 1024;
+							int numToIncreaseCWND = ceil(1.0 / currentCWNDPackets * 1024);
+							cout << "currentCWNDPackets: " << currentCWNDPackets << ", numToIncreaseCWND: " << numToIncreaseCWND << ", (cwnd + numToIncreaseCWND) / 1024: " << (cwnd + numToIncreaseCWND) / 1024 << ", cwnd: " << cwnd << endl;
+							if (cwnd + numToIncreaseCWND <= received.Window) {
+								if ((cwnd + numToIncreaseCWND) / 1024 != cwnd) {
+									numNewPackets = 2;
+								}
+								cwnd += numToIncreaseCWND;
+							}*/
+							if (cwnd + 1024 <= received.Window) {
+								numNewPackets = 2;
+								cwnd += 1024;
+							}
+							
 						}
 						
+
 						vector<TCPHeader> toSendOut;
 						for (int i = 0; i < numNewPackets; i++) {
 							char* currPay;
@@ -195,7 +234,8 @@ main(int argc, char **argv)
 							if (1024 + contentIndex < contentSize) {
 								currPay = new char[1024];
 								memcpy(currPay, contentArr + contentIndex, 1024);
-								cout << "Sending data packet " << response.SeqNum << " Content Index is: " << contentIndex << endl;
+								cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << endl;
+								//cout << "Sending data packet " << response.SeqNum << " Content Index is: " << contentIndex << endl;
 								response.setPayload(currPay, 1024);
 								int toPush = lastSeqNum + 1024 <= MAX_SEQ_NUM ? lastSeqNum + 1024 : lastSeqNum + 1024 - MAX_SEQ_NUM;
 								if (toPush < lastSeqNum) {
@@ -208,15 +248,16 @@ main(int argc, char **argv)
 								currPay = new char[contentSize - contentIndex];
 								memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
 								response.F = 1;
-								cout << "Sending data packet " << response.SeqNum << ", this is FIN"
-									<< " Content Index is: " << contentIndex << " Content Size is: " << contentSize - contentIndex << endl;
+								/*cout << "Sending data packet " << response.SeqNum << ", this is FIN"
+									<< " Content Index is: " << contentIndex << " Content Size is: " << contentSize - contentIndex << endl;*/
+								cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << endl;
 								response.setPayload(currPay, contentSize - contentIndex);
 								int toPush = lastSeqNum + (contentSize - contentIndex) <= MAX_SEQ_NUM ? lastSeqNum + (contentSize - contentIndex) : lastSeqNum + (contentSize - contentIndex) - MAX_SEQ_NUM;
 								unackedSeqNums.push_back(lastSeqNum + (contentSize - contentIndex));
 								if (toPush < lastSeqNum) {
 									internalNumWrapped++;
 								}
-								numNewPackets = i + 1;
+								//numNewPackets = i + 1;
 								toSendOut.push_back(response);
 								waitForFINACK = true;
 								break;
@@ -229,14 +270,6 @@ main(int argc, char **argv)
 								exit(1);
 							}
 						}
-						/*cout << "Removing head of unacked: " << unackedSeqNums[0] << ", List was" << endl;
-						for (int i = 0; i < unackedSeqNums.size(); i++) {
-						cout << unackedSeqNums[i] << " ";
-						}*/
-						//cout << endl;
-						/*if (numNewPackets >= 1) {
-							cout << "Increasing cwnd by 1, cwnd is now: " << cwnd << endl << endl;
-						}*/
 						unackedSeqNums.erase(unackedSeqNums.begin());
 					}
 				}
@@ -278,14 +311,14 @@ main(int argc, char **argv)
 						if (numToCopy + contentIndex < contentSize) {
 							currPay = new char[numToCopy];
 							memcpy(currPay, contentArr + contentIndex, numToCopy);
-							cout << "Sending data packet " << response.SeqNum << " Restransmission (Specific Timeout)" << " Content Index is: " << contentIndex << endl;
+							cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
 							response.setPayload(currPay, numToCopy);
 						}
 						else {
 							currPay = new char[contentSize - contentIndex];
 							memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
 							response.F = 1;
-							cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Content Index is: " << contentIndex << endl;
+							cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
 							response.setPayload(currPay, contentSize - contentIndex);
 						}
 						if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
@@ -296,7 +329,7 @@ main(int argc, char **argv)
 						unackedSeqNums.clear();
 						unackedSeqNums.push_back(headSeqNum);
 						waitForFINACK = false;
-						//ssthresh = cwnd / 2;
+						ssthresh = cwnd / 2;
 						cwnd = 1024;
 					}
 				}
@@ -305,6 +338,7 @@ main(int argc, char **argv)
 			else if(received.A && received.F){
 				// close(sockfd);
 				cout << "Received FIN-ACK, we're done" << endl;
+				cout << "Total Time" << (getCurrentTimestamp() - firstTime) / 1000 << endl;
 				return 0;
 			}
 		}
@@ -317,14 +351,14 @@ main(int argc, char **argv)
 				if (numToCopy + contentIndex < contentSize) {
 					currPay = new char[numToCopy];
 					memcpy(currPay, contentArr + contentIndex, numToCopy);
-					cout << "Sending data packet " << response.SeqNum << " Restransmission (General Timeout)" << " Content Index is: " << contentIndex << endl;
+					cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
 					response.setPayload(currPay, numToCopy);
 				}
 				else {
 					currPay = new char[contentSize - contentIndex];
 					memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
 					response.F = 1;
-					cout << "Sending data packet " << response.SeqNum << ", this is FIN" << " Content Index is: " << contentIndex << endl;
+					cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
 					response.setPayload(currPay, contentSize - contentIndex);
 				}
 				if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
@@ -335,7 +369,7 @@ main(int argc, char **argv)
 				unackedSeqNums.push_back(headSeqNum);
 				waitForFINACK = false;
 				internalNumWrapped = 0;
-				//ssthresh = cwnd / 2;
+				ssthresh = cwnd / 2;
 				cwnd = 1024;
 			}
 
