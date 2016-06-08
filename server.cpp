@@ -138,7 +138,7 @@ main(int argc, char **argv)
 			//Last phase of 3-way HS, or normal data flow
 			else if(received.A && !received.F){
 				begunTransfer = true;
-				cout << "Receiving ACK packet " << received.AckNum << endl;
+				cout << "Receiving packet " << received.AckNum << endl;
 				
 				/*if (received.AckNum == seq_num + 1024 
 					|| received.AckNum == seq_num + 1
@@ -150,7 +150,7 @@ main(int argc, char **argv)
 					if (cachedLastReceivedSeq > received.AckNum) {
 						numTimesWrapped++;
 						internalNumWrapped = 0;
-						cout << "New numTimesWrapped: " << numTimesWrapped << endl;
+						//cout << "New numTimesWrapped: " << numTimesWrapped << endl;
 					}
 					cachedLastReceivedSeq = received.AckNum;
 					oldestTimestamp = getCurrentTimestamp();
@@ -234,7 +234,7 @@ main(int argc, char **argv)
 							if (1024 + contentIndex < contentSize) {
 								currPay = new char[1024];
 								memcpy(currPay, contentArr + contentIndex, 1024);
-								cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << endl;
+								cout << "Sending packet " << response.SeqNum << " " << cwnd << " " << ssthresh << endl;
 								//cout << "Sending data packet " << response.SeqNum << " Content Index is: " << contentIndex << endl;
 								response.setPayload(currPay, 1024);
 								int toPush = lastSeqNum + 1024 <= MAX_SEQ_NUM ? lastSeqNum + 1024 : lastSeqNum + 1024 - MAX_SEQ_NUM;
@@ -250,7 +250,7 @@ main(int argc, char **argv)
 								response.F = 1;
 								/*cout << "Sending data packet " << response.SeqNum << ", this is FIN"
 									<< " Content Index is: " << contentIndex << " Content Size is: " << contentSize - contentIndex << endl;*/
-								cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << endl;
+								cout << "Sending packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " FIN " <<endl;
 								response.setPayload(currPay, contentSize - contentIndex);
 								int toPush = lastSeqNum + (contentSize - contentIndex) <= MAX_SEQ_NUM ? lastSeqNum + (contentSize - contentIndex) : lastSeqNum + (contentSize - contentIndex) - MAX_SEQ_NUM;
 								unackedSeqNums.push_back(lastSeqNum + (contentSize - contentIndex));
@@ -311,14 +311,14 @@ main(int argc, char **argv)
 						if (numToCopy + contentIndex < contentSize) {
 							currPay = new char[numToCopy];
 							memcpy(currPay, contentArr + contentIndex, numToCopy);
-							cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
+							cout << "Sending packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
 							response.setPayload(currPay, numToCopy);
 						}
 						else {
 							currPay = new char[contentSize - contentIndex];
 							memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
 							response.F = 1;
-							cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
+							cout << "Sending packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission FIN" << endl;
 							response.setPayload(currPay, contentSize - contentIndex);
 						}
 						if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
@@ -337,7 +337,8 @@ main(int argc, char **argv)
 			//We've sent a FIN to the client and now it's FIN-ACK-ing us
 			else if(received.A && received.F){
 				// close(sockfd);
-				cout << "Received FIN-ACK, we're done" << endl;
+				//cout << "Received FIN-ACK, we're done" << endl;
+				cout << "Receiving packet FIN" << endl;
 				cout << "Total Time" << (getCurrentTimestamp() - firstTime) / 1000 << endl;
 				return 0;
 			}
@@ -358,7 +359,7 @@ main(int argc, char **argv)
 					currPay = new char[contentSize - contentIndex];
 					memcpy(currPay, contentArr + contentIndex, contentSize - contentIndex);
 					response.F = 1;
-					cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission " << endl;
+					cout << "Sending data packet " << response.SeqNum << " " << cwnd << " " << ssthresh << " Restransmission FIN" << endl;
 					response.setPayload(currPay, contentSize - contentIndex);
 				}
 				if (sendto(sockfd, response.encode(), response.getPacketSize(), 0, (struct sockaddr *)&remaddr, addrlen) == -1) {
